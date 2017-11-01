@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strconv"
 	"time"
+	_ "errors"
+	_ "os"
 )
 
 const ( // iota is reset to 0
@@ -27,27 +29,82 @@ func newElevaror() elevator {
 
 func (e elevator) move() {
 
+	if e.direction == UP {
+		e.currentFloor++
+	}
+	if e.direction == DOWN {
+		e.currentFloor--
+	}
+
+	if e.buttons[e.currentFloor] { //the floor button we've arrived at was on
+		e.buttons[e.currentFloor] = false
+	}
 }
 
-func startElevator() {
-	elevator := newElevaror()
-	for true {
-		elevator.move()
+func (e elevator) nextFloor() int {
+	if e.direction == UP {
+
 	}
+
+	if e.direction == DOWN {
+
+	}
+	return 1
+}
+
+func startElevator(commands chan int) {
+
+	elevator := newElevaror()
+	moves := make(chan struct{})
+
+	for true {
+	select {
+	case move := <-moves:
+
+		if elevator.currentFloor == elevator.maxFloor - 1 {
+			elevator.direction = DOWN
+		}
+
+		if elevator.currentFloor == elevator.maxFloor - 1 {
+			elevator.direction = UP
+		}
+
+		if elevator.direction == UP && elevator.nextFloor() == -1 {
+			elevator.direction = DOWN
+		}
+		if elevator.direction == DOWN && elevator.nextFloor() == -1 {
+			elevator.direction = UP
+		}
+		_ = move
+		elevator.move()
+
+	case command := <-commands:
+		elevator.buttons[command-1] = true
+	default:
+		//fmt.Println("Default.")
+
+		/*
+
+
+		 */
+	}
+	}
+
 }
 
 func main() {
 
-	go startElevator()
-
-	commands := make(chan int)
-
 	fmt.Println("I'm an elevator.")
 
-	floors := flag.Int("floors", 1, "Number of floors")
+	floors := flag.Int64("floors", 10, "Number of floors")
 	height := flag.Float64("height", 1, "Height of a floor")
 	speed := flag.Float64("speed", 1, "Lift speed")
-	openTime := flag.Float64("speed", 1, "Lift speed")
+	openTime := flag.Float64("open", 1, "Door open time")
+
+	flag.Parse()
+
+	commands := make(chan int, *floors)
+	go startElevator(commands)
 
 	_ = commands
 	_ = floors
@@ -63,7 +120,7 @@ func main() {
 		fmt.Println(input)
 
 		if input == "T" {
-
+			commands <- 0
 		}
 
 		if input != "T" {
@@ -71,7 +128,12 @@ func main() {
 			if err != nil {
 				fmt.Println("Floor is an integer.")
 			} else {
-				commands <- int(floor)
+
+				if (floor > *floors - 1) || (floor < 0) {
+					fmt.Printf("Floor is an integer between 0 and %d", *floors-1)
+				} else {
+					commands <- int(floor)
+				}
 			}
 		}
 	}
