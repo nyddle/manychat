@@ -40,6 +40,8 @@ func main() {
 
 	go startElevator()
 
+	commands := make(chan int)
+
 	fmt.Println("I'm an elevator.")
 
 	floors := flag.Int("floors", 1, "Number of floors")
@@ -47,11 +49,14 @@ func main() {
 	speed := flag.Float64("speed", 1, "Lift speed")
 	openTime := flag.Float64("speed", 1, "Lift speed")
 
+	_ = commands
+	_ = floors
+	_ = openTime
+
 	floorSpeed := time.Duration(*height / *speed * 1000000000) // nanoseconds for 1 floor
 	time.Sleep(floorSpeed)
 
 	var input string
-
 	for input != "exit" {
 
 		fmt.Scan(&input)
@@ -65,6 +70,8 @@ func main() {
 			floor, err := strconv.ParseInt(input, 10, 64)
 			if err != nil {
 				fmt.Println("Floor is an integer.")
+			} else {
+				commands <- int(floor)
 			}
 		}
 	}
