@@ -20,10 +20,11 @@ type elevator struct {
 	currentFloor int
 	direction    int
 	buttons      [10]bool
+	status       string
 }
 
 func newElevaror() elevator {
-	return elevator{currentFloor: 0, direction: UP, maxFloor: 9}
+	return elevator{currentFloor: 0, direction: UP, status: "standby"}
 }
 
 func (e *elevator) move(moves chan struct{}) {
@@ -46,6 +47,7 @@ func (e *elevator) move(moves chan struct{}) {
 		}
 	*/
 
+	e.status = "moving"
 	fmt.Fprintf(os.Stderr, "Floor %d. Moving %d\n", e.currentFloor+1, e.direction)
 	//time.Sleep(time.Duration(e.passTime))
 	time.Sleep(time.Duration(time.Second))
@@ -60,11 +62,13 @@ func (e *elevator) move(moves chan struct{}) {
 	fmt.Fprintf(os.Stderr, "debug floor %d\n", e.currentFloor)
 
 	if e.buttons[e.currentFloor] { //the floor button we've arrived at was on
+		e.status = "doors"
 		fmt.Fprintf(os.Stderr, "Opening doors on floor %d\n", e.currentFloor+1)
 		time.Sleep(time.Duration(e.passTime))
 		e.buttons[e.currentFloor] = false
 	}
 
+	e.status = "standby"
 	moves <- struct{}{}
 }
 
@@ -101,19 +105,18 @@ func (e elevator) nextFloor() int {
 	return nextFloor
 }
 
-func startElevator(commands chan int) {
+func (e elevator) start(commands chan int) {
 
-	elevator := newElevaror()
 	moves := make(chan struct{})
-	go elevator.move(moves)
+	go e.move(moves)
 
 	for true {
 		select {
 		case _ = <-moves:
-			go elevator.move(moves)
+			go e.move(moves)
 		case command := <-commands:
 			fmt.Printf("GOT COMMAND: %d", command)
-			elevator.buttons[command-1] = true
+			e.buttons[command-1] = true
 		default:
 
 		}
@@ -123,26 +126,27 @@ func startElevator(commands chan int) {
 
 func main() {
 
-	fmt.Println("I'm an elevator.")
-
 	floors := flag.Int64("floors", 10, "Number of floors")
 	height := flag.Float64("height", 1, "Height of a floor")
 	speed := flag.Float64("speed", 1, "Lift speed")
-	//openTime := flag.Float64("open", 1, "Door open time")
-
+	openTime := flag.Float64("open", 1, "Door open time")
 	flag.Parse()
 
-	commands := make(chan int, *floors)
-	go startElevator(commands)
-
 	floorSpeed := time.Duration(*height / *speed * 1000000000) // nanoseconds for 1 floor
-	time.Sleep(floorSpeed)
+
+	commands := make(chan int, *floors)
+
+	elevator := newElevaror()
+	elevator.maxFloor = int(*floors)
+	elevator.passTime = floorSpeed
+	elevator.openTime = time.Duration(*openTime * 1000000000)
+
+	go elevator.start(commands)
 
 	var input string
 	for input != "exit" {
 
 		fmt.Scan(&input)
-		//fmt.Println(input)
 
 		if input == "T" {
 			commands <- 0
