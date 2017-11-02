@@ -3,11 +3,9 @@ package main
 import (
 	"flag"
 	"fmt"
+	"os"
 	"strconv"
 	"time"
-	_ "errors"
-	_ "os"
-	"os"
 )
 
 const ( // iota is reset to 0
@@ -25,13 +23,13 @@ type elevator struct {
 }
 
 func newElevaror() elevator {
-	return elevator{currentFloor: 0, direction: UP}
+	return elevator{currentFloor: 0, direction: UP, maxFloor: 9}
 }
 
 func (e *elevator) move(moves chan struct{}) {
 
 	// direction  change logic
-	if e.currentFloor == e.maxFloor - 1 {
+	if e.currentFloor == e.maxFloor-1 {
 		e.direction = DOWN
 	}
 
@@ -39,18 +37,18 @@ func (e *elevator) move(moves chan struct{}) {
 		e.direction = UP
 	}
 
-	if e.direction == UP && e.nextFloor() == -1 {
-		e.direction = DOWN
-	}
-	if e.direction == DOWN && e.nextFloor() == -1 {
-		e.direction = UP
-	}
+	/*
+		if e.direction == UP && e.nextFloor() == -1 {
+			e.direction = DOWN
+		}
+		if e.direction == DOWN && e.nextFloor() == -1 {
+			e.direction = UP
+		}
+	*/
 
-
-	fmt.Fprintf(os.Stderr, "Floor %d. Moving %d\n", e.currentFloor, e.direction)
+	fmt.Fprintf(os.Stderr, "Floor %d. Moving %d\n", e.currentFloor+1, e.direction)
 	//time.Sleep(time.Duration(e.passTime))
 	time.Sleep(time.Duration(time.Second))
-
 
 	if e.direction == UP {
 		e.currentFloor++
@@ -59,8 +57,10 @@ func (e *elevator) move(moves chan struct{}) {
 		e.currentFloor--
 	}
 
+	fmt.Fprintf(os.Stderr, "debug floor %d\n", e.currentFloor)
+
 	if e.buttons[e.currentFloor] { //the floor button we've arrived at was on
-		fmt.Fprintf(os.Stderr, "Opening doors on floor %d\n", e.currentFloor)
+		fmt.Fprintf(os.Stderr, "Opening doors on floor %d\n", e.currentFloor+1)
 		time.Sleep(time.Duration(e.passTime))
 		e.buttons[e.currentFloor] = false
 	}
@@ -78,7 +78,7 @@ func (e elevator) nextFloor() int {
 		nextFloor = e.currentFloor - 1
 	}
 
-	if (nextFloor > e.maxFloor - 1) || (nextFloor < 0) {
+	if (nextFloor > e.maxFloor-1) || (nextFloor < 0) {
 		return -1
 	}
 
@@ -109,11 +109,8 @@ func startElevator(commands chan int) {
 
 	for true {
 		select {
-		case move := <-moves:
-			fmt.Println("Got a move!\n\n")
-			_ = move
+		case _ = <-moves:
 			go elevator.move(moves)
-
 		case command := <-commands:
 			fmt.Printf("GOT COMMAND: %d", command)
 			elevator.buttons[command-1] = true
@@ -157,7 +154,7 @@ func main() {
 				fmt.Println("Floor is an integer.")
 			} else {
 
-				if (floor > *floors - 1) || (floor < 0) {
+				if (floor > *floors-1) || (floor < 0) {
 					fmt.Printf("Floor is an integer between 0 and %d\n", *floors-1)
 				} else {
 					commands <- int(floor)
