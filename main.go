@@ -7,6 +7,7 @@ import (
 	"time"
 	_ "errors"
 	_ "os"
+	"os"
 )
 
 const ( // iota is reset to 0
@@ -24,10 +25,32 @@ type elevator struct {
 }
 
 func newElevaror() elevator {
-	return elevator{currentFloor: 0, direction: DOWN}
+	return elevator{currentFloor: 0, direction: UP}
 }
 
-func (e elevator) move() {
+func (e *elevator) move(moves chan struct{}) {
+
+	// direction  change logic
+	if e.currentFloor == e.maxFloor - 1 {
+		e.direction = DOWN
+	}
+
+	if e.currentFloor == 0 {
+		e.direction = UP
+	}
+
+	if e.direction == UP && e.nextFloor() == -1 {
+		e.direction = DOWN
+	}
+	if e.direction == DOWN && e.nextFloor() == -1 {
+		e.direction = UP
+	}
+
+
+	fmt.Fprintf(os.Stderr, "Floor %d. Moving %d\n", e.currentFloor, e.direction)
+	//time.Sleep(time.Duration(e.passTime))
+	time.Sleep(time.Duration(time.Second))
+
 
 	if e.direction == UP {
 		e.currentFloor++
@@ -37,57 +60,66 @@ func (e elevator) move() {
 	}
 
 	if e.buttons[e.currentFloor] { //the floor button we've arrived at was on
+		fmt.Fprintf(os.Stderr, "Opening doors on floor %d\n", e.currentFloor)
+		time.Sleep(time.Duration(e.passTime))
 		e.buttons[e.currentFloor] = false
 	}
+
+	moves <- struct{}{}
 }
 
 func (e elevator) nextFloor() int {
-	if e.direction == UP {
+	var nextFloor int
 
+	if e.direction == UP {
+		nextFloor = e.currentFloor + 1
+	}
+	if e.direction == DOWN {
+		nextFloor = e.currentFloor - 1
+	}
+
+	if (nextFloor > e.maxFloor - 1) || (nextFloor < 0) {
+		return -1
+	}
+
+	if e.direction == UP {
+		for i := e.currentFloor + 1; i < e.maxFloor; i++ {
+			if e.buttons[i] {
+				return i
+			}
+		}
 	}
 
 	if e.direction == DOWN {
-
+		for i := e.currentFloor - 1; i >= 0; i-- {
+			if e.buttons[i] {
+				return i
+			}
+		}
 	}
-	return 1
+
+	return nextFloor
 }
 
 func startElevator(commands chan int) {
 
 	elevator := newElevaror()
 	moves := make(chan struct{})
+	go elevator.move(moves)
 
 	for true {
-	select {
-	case move := <-moves:
+		select {
+		case move := <-moves:
+			fmt.Println("Got a move!\n\n")
+			_ = move
+			go elevator.move(moves)
 
-		if elevator.currentFloor == elevator.maxFloor - 1 {
-			elevator.direction = DOWN
+		case command := <-commands:
+			fmt.Printf("GOT COMMAND: %d", command)
+			elevator.buttons[command-1] = true
+		default:
+
 		}
-
-		if elevator.currentFloor == elevator.maxFloor - 1 {
-			elevator.direction = UP
-		}
-
-		if elevator.direction == UP && elevator.nextFloor() == -1 {
-			elevator.direction = DOWN
-		}
-		if elevator.direction == DOWN && elevator.nextFloor() == -1 {
-			elevator.direction = UP
-		}
-		_ = move
-		elevator.move()
-
-	case command := <-commands:
-		elevator.buttons[command-1] = true
-	default:
-		//fmt.Println("Default.")
-
-		/*
-
-
-		 */
-	}
 	}
 
 }
@@ -99,16 +131,12 @@ func main() {
 	floors := flag.Int64("floors", 10, "Number of floors")
 	height := flag.Float64("height", 1, "Height of a floor")
 	speed := flag.Float64("speed", 1, "Lift speed")
-	openTime := flag.Float64("open", 1, "Door open time")
+	//openTime := flag.Float64("open", 1, "Door open time")
 
 	flag.Parse()
 
 	commands := make(chan int, *floors)
 	go startElevator(commands)
-
-	_ = commands
-	_ = floors
-	_ = openTime
 
 	floorSpeed := time.Duration(*height / *speed * 1000000000) // nanoseconds for 1 floor
 	time.Sleep(floorSpeed)
@@ -117,7 +145,7 @@ func main() {
 	for input != "exit" {
 
 		fmt.Scan(&input)
-		fmt.Println(input)
+		//fmt.Println(input)
 
 		if input == "T" {
 			commands <- 0
@@ -130,7 +158,7 @@ func main() {
 			} else {
 
 				if (floor > *floors - 1) || (floor < 0) {
-					fmt.Printf("Floor is an integer between 0 and %d", *floors-1)
+					fmt.Printf("Floor is an integer between 0 and %d\n", *floors-1)
 				} else {
 					commands <- int(floor)
 				}
