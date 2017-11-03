@@ -42,6 +42,14 @@ func newElevaror() elevator {
 	return elevator{currentFloor: 0, direction: UP, status: STANDBY}
 }
 
+func (e *elevator) openCloseDoors() {
+	time.Sleep(e.doorTime)
+}
+
+func (e *elevator) passFloor() {
+	time.Sleep(e.passTime)
+}
+
 func (e *elevator) move(moves chan struct{}) {
 
 	if !e.buttonsPressed() {
@@ -69,7 +77,7 @@ func (e *elevator) move(moves chan struct{}) {
 
 	e.status = MOVING
 	fmt.Fprintf(os.Stderr, "Floor %d. Moving %d\n", e.currentFloor, e.direction)
-	time.Sleep(e.passTime)
+	e.passFloor()
 
 	if e.direction == UP {
 		e.currentFloor++
@@ -81,7 +89,7 @@ func (e *elevator) move(moves chan struct{}) {
 	if e.buttons[e.currentFloor] { //the floor button we've arrived at was on
 		e.status = DOORS
 		fmt.Fprintf(os.Stderr, "Opening doors on floor %d\n", e.currentFloor)
-		time.Sleep(e.doorTime)
+		e.openCloseDoors()
 		e.buttons[e.currentFloor] = false
 	}
 	e.status = STANDBY
