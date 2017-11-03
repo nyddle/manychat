@@ -8,26 +8,46 @@ import (
 	"time"
 )
 
-const ( // iota is reset to 0
+const (
 	DOWN = iota
 	UP
 )
 
+const (
+	MOVING = iota
+	STANDBY
+	DOORS
+)
+
 type elevator struct {
-	openTime     time.Duration
+	doorTime     time.Duration
 	passTime     time.Duration
 	maxFloor     int
 	currentFloor int
 	direction    int
 	buttons      [10]bool
-	status       string
+	status       int
+}
+
+func (e *elevator) buttonsPressed() bool {
+	for _, button := range e.buttons {
+		if button {
+			return button
+		}
+	}
+	return false
 }
 
 func newElevaror() elevator {
-	return elevator{currentFloor: 0, direction: UP, status: "standby"}
+	return elevator{currentFloor: 0, direction: UP, status: STANDBY}
 }
 
 func (e *elevator) move(moves chan struct{}) {
+
+	if !e.buttonsPressed() {
+		moves <- struct{}{}
+		return
+	}
 
 	// direction  change logic
 	if e.currentFloor == e.maxFloor-1 {
@@ -47,10 +67,9 @@ func (e *elevator) move(moves chan struct{}) {
 		}
 	*/
 
-	e.status = "moving"
-	fmt.Fprintf(os.Stderr, "Floor %d. Moving %d\n", e.currentFloor+1, e.direction)
-	//time.Sleep(time.Duration(e.passTime))
-	time.Sleep(time.Duration(time.Second))
+	e.status = MOVING
+	fmt.Fprintf(os.Stderr, "Floor %d. Moving %d\n", e.currentFloor, e.direction)
+	time.Sleep(e.passTime)
 
 	if e.direction == UP {
 		e.currentFloor++
@@ -59,16 +78,13 @@ func (e *elevator) move(moves chan struct{}) {
 		e.currentFloor--
 	}
 
-	fmt.Fprintf(os.Stderr, "debug floor %d\n", e.currentFloor)
-
 	if e.buttons[e.currentFloor] { //the floor button we've arrived at was on
-		e.status = "doors"
-		fmt.Fprintf(os.Stderr, "Opening doors on floor %d\n", e.currentFloor+1)
-		time.Sleep(time.Duration(e.passTime))
+		e.status = DOORS
+		fmt.Fprintf(os.Stderr, "Opening doors on floor %d\n", e.currentFloor)
+		time.Sleep(e.doorTime)
 		e.buttons[e.currentFloor] = false
 	}
-
-	e.status = "standby"
+	e.status = STANDBY
 	moves <- struct{}{}
 }
 
@@ -129,7 +145,7 @@ func main() {
 	floors := flag.Int64("floors", 10, "Number of floors")
 	height := flag.Float64("height", 1, "Height of a floor")
 	speed := flag.Float64("speed", 1, "Lift speed")
-	openTime := flag.Float64("open", 1, "Door open time")
+	openTime := flag.Float64("open time", 1, "Door open time, seconds.")
 	flag.Parse()
 
 	floorSpeed := time.Duration(*height / *speed * 1000000000) // nanoseconds for 1 floor
@@ -139,7 +155,7 @@ func main() {
 	elevator := newElevaror()
 	elevator.maxFloor = int(*floors)
 	elevator.passTime = floorSpeed
-	elevator.openTime = time.Duration(*openTime * 1000000000)
+	elevator.doorTime = time.Duration(*openTime * 1000000000)
 
 	go elevator.start(commands)
 
